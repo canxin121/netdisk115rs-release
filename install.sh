@@ -64,6 +64,21 @@ if ! id "$run_user" >/dev/null 2>&1; then
   exit 67
 fi
 run_group="$(id -gn "$run_user")"
+if command -v getent >/dev/null 2>&1; then
+  run_home="$(getent passwd "$run_user" | awk -F: 'NR == 1 {print $6}')"
+elif command -v dscl >/dev/null 2>&1; then
+  run_home="$(dscl . -read "/Users/$run_user" NFSHomeDirectory 2>/dev/null | awk 'NR == 1 {print $2}')"
+else
+  run_home=""
+fi
+if [[ -z "$run_home" ]]; then
+  if [[ "$run_user" == "$(id -un)" ]]; then
+    run_home="${HOME:-/tmp}"
+  else
+    echo "Could not determine home directory for service user: $run_user" >&2
+    exit 67
+  fi
+fi
 
 asset="netdisk115rs-${platform}-${arch}.tar.gz"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/netdisk115rs-install.XXXXXX")"
@@ -130,6 +145,8 @@ Type=simple
 User=$run_user
 Group=$run_group
 WorkingDirectory=$state_dir
+Environment="HOME=$run_home"
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=$bin_path --config $state_dir/config.yaml serve
 Restart=on-failure
 RestartSec=5
@@ -180,6 +197,11 @@ else
   </array>
   <key>WorkingDirectory</key><string>$state_dir</string>
   <key>UserName</key><string>$run_user</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>$run_home</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ThrottleInterval</key><integer>5</integer>
