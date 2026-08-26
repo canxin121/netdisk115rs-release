@@ -8,9 +8,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   SOURCE_REPO: canxin121/netdisk115rs
