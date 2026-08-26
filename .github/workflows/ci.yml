@@ -46,16 +46,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout release repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Checkout private source
-        uses: actions/checkout@v4
+        if: runner.os != 'Windows' || matrix.arch != 'arm64'
+        uses: actions/checkout@v7.0.1
         with:
           repository: ${{ env.SOURCE_REPO }}
           ref: main
           path: source
           ssh-key: ${{ secrets.SOURCE_REPO_SSH_KEY }}
           persist-credentials: false
+
+      - name: Checkout private source (Windows ARM64 ACL workaround)
+        if: runner.os == 'Windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        env:
+          SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+        run: ./scripts/checkout-private-source.ps1 -Repository "$env:SOURCE_REPO" -Ref main -Destination "$PWD/source"
 
       - uses: oven-sh/setup-bun@v2
         with:
