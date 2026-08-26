@@ -61,7 +61,13 @@ try {
     if (-not (Test-Path -LiteralPath $ssh)) {
         throw "Windows OpenSSH client not found at $ssh"
     }
-    $env:GIT_SSH_COMMAND = "$ssh -i $keyPath -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o CheckHostIP=no -o UserKnownHostsFile=$knownHostsPath"
+    # Git for Windows evaluates GIT_SSH_COMMAND through a POSIX shell. Native
+    # Windows backslashes are therefore treated as escape characters unless we
+    # normalize the paths first.
+    $sshGit = $ssh.Replace('\', '/')
+    $keyPathGit = $keyPath.Replace('\', '/')
+    $knownHostsPathGit = $knownHostsPath.Replace('\', '/')
+    $env:GIT_SSH_COMMAND = "`"$sshGit`" -i `"$keyPathGit`" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o CheckHostIP=no -o UserKnownHostsFile=`"$knownHostsPathGit`""
 
     $destinationPath = [System.IO.Path]::GetFullPath($Destination)
     if (Test-Path -LiteralPath $destinationPath) {
