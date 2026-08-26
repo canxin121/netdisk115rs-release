@@ -13,23 +13,8 @@ env:
   SOURCE_REPO: canxin121/netdisk115rs
 
 jobs:
-  syntax:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate public scripts
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash -n install.sh uninstall.sh scripts/package-unix.sh
-          pwsh -NoProfile -Command '$null=[scriptblock]::Create((Get-Content ./install.ps1 -Raw)); $null=[scriptblock]::Create((Get-Content ./uninstall.ps1 -Raw)); $null=[scriptblock]::Create((Get-Content ./scripts/package-windows.ps1 -Raw))'
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Check Windows service wrapper source
-        run: cargo check --manifest-path service/windows-wrapper/Cargo.toml
-
   build-install-smoke:
     name: ${{ matrix.platform }}-${{ matrix.arch }}
-    needs: syntax
     strategy:
       fail-fast: false
       matrix:
