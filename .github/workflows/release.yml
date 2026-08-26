@@ -200,7 +200,9 @@ jobs:
           notes="Closed-source binary release built from private source ref \`$SOURCE_REF\` at commit \`$SOURCE_SHA\`. All six native installer/service jobs passed before publishing."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
-            gh release edit "$TAG" --title "$TAG" --notes "$notes" $([[ "$PRERELEASE" == true ]] && echo --prerelease || echo --latest)
+            edit_flags=(--title "$TAG" --notes "$notes" "--prerelease=$PRERELEASE")
+            if [[ "$PRERELEASE" != true ]]; then edit_flags+=(--latest); fi
+            gh release edit "$TAG" "${edit_flags[@]}"
           else
             flags=(--title "$TAG" --target "$GITHUB_SHA" --notes "$notes")
             if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); else flags+=(--latest); fi
