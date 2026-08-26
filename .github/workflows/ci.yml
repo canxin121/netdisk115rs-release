@@ -65,6 +65,19 @@ jobs:
           SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
         run: ./scripts/checkout-private-source.ps1 -Repository "$env:SOURCE_REPO" -Ref main -Destination "$PWD/source"
 
+      - name: Regression-test Deploy Key ACL helper on Windows x64
+        if: runner.os == 'Windows' && matrix.arch == 'x86_64'
+        shell: pwsh
+        env:
+          SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+        run: |
+          $probe = Join-Path $env:RUNNER_TEMP 'netdisk115rs-source-helper-smoke'
+          ./scripts/checkout-private-source.ps1 -Repository "$env:SOURCE_REPO" -Ref main -Destination $probe
+          $expected = (git -C source rev-parse HEAD).Trim()
+          $actual = (git -C $probe rev-parse HEAD).Trim()
+          if ($actual -ne $expected) { throw "helper checkout mismatch: expected $expected, got $actual" }
+          Remove-Item -LiteralPath $probe -Recurse -Force
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
