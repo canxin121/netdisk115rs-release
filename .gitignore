@@ -1,0 +1,6 @@
+.DS_Store
+dist/
+.tmp/
+target/
+service/windows-wrapper/target/
+*.log

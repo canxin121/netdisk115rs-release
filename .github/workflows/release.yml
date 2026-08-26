@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.1.0
+        required: true
+        type: string
+      source_ref:
+        description: Private source branch, tag, or commit
+        required: true
+        default: main
+        type: string
+      prerelease:
+        description: Mark as prerelease
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: canxin121/netdisk115rs
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.meta.outputs.source_sha }}
+      source_version: ${{ steps.meta.outputs.source_version }}
+    steps:
+      - name: Validate release tag
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Invalid tag: $TAG" >&2; exit 64; }
+      - name: Resolve private source ref
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.source_ref }}
+          path: source
+          ssh-key: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+          persist-credentials: false
+      - id: meta
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          sha="$(git -C source rev-parse HEAD)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' source/Cargo.toml | head -n 1)"
+          [[ "v$version" == "$TAG" ]] || { echo "Cargo.toml version v$version does not match requested tag $TAG" >&2; exit 65; }
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "source_version=$version" >> "$GITHUB_OUTPUT"
+
+  build-test:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x86_64
+            asset: netdisk115rs-linux-x86_64.tar.gz
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            asset: netdisk115rs-linux-arm64.tar.gz
+          - os: macos-15-intel
+            platform: macos
+            arch: x86_64
+            asset: netdisk115rs-macos-x86_64.tar.gz
+          - os: macos-15
+            platform: macos
+            arch: arm64
+            asset: netdisk115rs-macos-arm64.tar.gz
+          - os: windows-2025
+            platform: windows
+            arch: x86_64
+            asset: netdisk115rs-windows-x86_64.zip
+          - os: windows-11-arm
+            platform: windows
+            arch: arm64
+            asset: netdisk115rs-windows-arm64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact private source commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          path: source
+          ssh-key: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Build web assets
+        shell: bash
+        working-directory: source/web
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run build
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build backend
+        shell: bash
+        working-directory: source
+        run: cargo build --release --locked
+      - name: Build Windows service host
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cargo build --manifest-path service/windows-wrapper/Cargo.toml --release --locked
+      - name: Package Unix
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/package-unix.sh "$PWD/source" "$PWD/dist" "${{ matrix.platform }}" "${{ matrix.arch }}"
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -SourceDir "$PWD/source" -OutDir "$PWD/dist" -Arch "${{ matrix.arch }}"
+      - name: Smoke test Linux installer/service
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./install.sh --archive "$PWD/dist/${{ matrix.asset }}"
+          sudo systemctl is-enabled --quiet netdisk115rs.service
+          sudo systemctl is-active --quiet netdisk115rs.service
+          curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
+      - name: Smoke test macOS installer/service
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./install.sh --archive "$PWD/dist/${{ matrix.asset }}"
+          sudo launchctl print system/com.canxin.netdisk115rs >/dev/null
+          curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
+      - name: Smoke test Windows installer/service
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./install.ps1 -ArchivePath "$PWD/dist/${{ matrix.asset }}"
+          $svc = Get-CimInstance Win32_Service -Filter "Name='netdisk115rs'"
+          if (-not $svc -or $svc.State -ne 'Running' -or $svc.StartMode -ne 'Auto') { throw 'Windows Service verification failed' }
+          $ok = $false
+          for ($i = 0; $i -lt 20; $i++) {
+            try { if ((Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/' -TimeoutSec 2).StatusCode -eq 200) { $ok = $true; break } } catch {}
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) { throw 'HTTP health check failed' }
+      - name: Cleanup Unix test service
+        if: always() && runner.os != 'Windows'
+        shell: bash
+        run: ./uninstall.sh --purge || true
+      - name: Cleanup Windows test service
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: ./uninstall.ps1 -Purge
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, build-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum netdisk115rs-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          notes="Closed-source binary release built from private source ref \`$SOURCE_REF\` at commit \`$SOURCE_SHA\`. All six native installer/service jobs passed before publishing."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --title "$TAG" --notes "$notes" $([[ "$PRERELEASE" == true ]] && echo --prerelease || echo --latest)
+          else
+            flags=(--title "$TAG" --target "$GITHUB_SHA" --notes "$notes")
+            if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); else flags+=(--latest); fi
+            gh release create "$TAG" dist/* "${flags[@]}"
+          fi
