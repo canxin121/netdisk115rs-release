@@ -1,181 +1,717 @@
-# netdisk115rs Releases
+# netdisk115rs
 
-`netdisk115rs` 的公开发布仓库。这里仅保存安装器、服务宿主、GitHub Actions、文档和 GitHub Release 二进制；应用源码仍位于私有仓库 `canxin121/netdisk115rs`，不会提交或上传到本仓库。
+`netdisk115rs` 是一个面向 115 网盘的本地服务与命令行工具，提供 Web 管理界面、文件操作、媒体库、离线任务、分享、只读直链 WebDAV 等能力。
 
-## 一键安装
+本仓库用于分发安装脚本、服务组件和预编译 Release。`netdisk115rs` 核心程序以闭源二进制形式发布。
+
+- 最新版本：<https://github.com/canxin121/netdisk115rs-release/releases/latest>
+- 默认 Web 地址：`http://127.0.0.1:8080`
+- 支持原生系统服务和开机自启动
+- 支持自动升级式安装：再次运行安装脚本即可更新程序
+- Release 下载会自动校验 SHA-256
+
+## 支持平台
+
+| 系统 | 架构 | Release 文件 | 服务方式 |
+| --- | --- | --- | --- |
+| Linux | x86_64 | `netdisk115rs-linux-x86_64.tar.gz` | systemd |
+| Linux | arm64 | `netdisk115rs-linux-arm64.tar.gz` | systemd |
+| macOS | Intel x86_64 | `netdisk115rs-macos-x86_64.tar.gz` | LaunchDaemon |
+| macOS | Apple Silicon arm64 | `netdisk115rs-macos-arm64.tar.gz` | LaunchDaemon |
+| Windows | x86_64 | `netdisk115rs-windows-x86_64.zip` | Windows Service |
+| Windows | arm64 | `netdisk115rs-windows-arm64.zip` | Windows Service |
+
+Linux 安装方式要求系统使用 `systemd`。macOS 和 Linux 安装器会在需要时调用 `sudo`；建议以普通登录用户执行安装命令，不要使用 `sudo bash` 直接运行整个安装脚本。默认情况下，后台服务会以执行安装器的用户身份运行。Windows 安装器需要管理员 PowerShell。
+
+## 快速安装
 
 ### macOS
 
-Apple Silicon 与 Intel 都有原生包。安装器需要 `sudo`，会安装系统级 LaunchDaemon，开机自动启动，不要求用户先登录：
+在终端执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
 ```
 
-默认位置：
+安装器会自动识别 Intel 或 Apple Silicon，下载对应 Release，校验 SHA-256，安装 LaunchDaemon 并启动服务。
 
-- 程序：`/usr/local/bin/netdisk115rs`
-- 配置/状态：`/Library/Application Support/netdisk115rs`
-- 服务：`/Library/LaunchDaemons/com.canxin.netdisk115rs.plist`
-
-```bash
-sudo launchctl print system/com.canxin.netdisk115rs
-sudo launchctl kickstart -k system/com.canxin.netdisk115rs
-```
-
-### Linux
-
-x86_64 与 arm64 都有原生包：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
-```
-
-默认位置：
-
-- 程序：`/usr/local/bin/netdisk115rs`
-- 配置/状态：`/var/lib/netdisk115rs`
-- 服务：`/etc/systemd/system/netdisk115rs.service`
-
-安装器执行 `systemctl enable`，服务以执行安装器的用户身份运行，随系统启动并在异常退出后自动重启。
-
-```bash
-sudo systemctl status netdisk115rs
-sudo systemctl restart netdisk115rs
-journalctl -u netdisk115rs -f
-```
-
-### Windows
-
-x86_64 与 arm64 都有原生包。在**管理员 PowerShell** 中执行：
-
-```powershell
-irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 | iex
-```
-
-默认位置：
-
-- 程序：`%ProgramFiles%\netdisk115rs`
-- 配置/状态：`%ProgramData%\netdisk115rs`
-- 服务名：`netdisk115rs`
-
-Windows 包内带本仓库源码构建的 `netdisk115rs-service.exe`，通过 Windows SCM 注册为真正的 `Automatic` Service；它负责启动闭源后端、转发 Stop/Shutdown，并配合 SCM failure actions 在异常退出后重启。
-
-```powershell
-Get-Service netdisk115rs
-Restart-Service netdisk115rs
-```
-
-## 首次运行
-
-默认监听：
+安装完成后打开：
 
 ```text
 http://127.0.0.1:8080
 ```
 
-配置文件：
+### Linux
 
-| 平台 | 路径 |
-| --- | --- |
-| macOS | `/Library/Application Support/netdisk115rs/config.yaml` |
-| Linux | `/var/lib/netdisk115rs/config.yaml` |
-| Windows | `%ProgramData%\netdisk115rs\config.yaml` |
+在终端执行：
 
-首次安装会从发布包里的 `config.example.yaml` 创建 `config.yaml`；后续升级只替换程序和 `static/`，不覆盖已有配置、账号 session 和 `data/`。
+```bash
+curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
+```
 
-## 升级与指定版本
+安装器会自动识别 x86_64 或 arm64，下载对应 Release，校验 SHA-256，注册 `systemd` 服务并设置开机自启动。
 
-重新运行一键安装命令即可升级到 latest。macOS/Linux 可固定版本：
+安装完成后打开：
+
+```text
+http://127.0.0.1:8080
+```
+
+### Windows
+
+打开**管理员 PowerShell**，执行：
+
+```powershell
+irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 | iex
+```
+
+安装器会自动识别 x64 或 ARM64，下载对应 Release，校验 SHA-256，注册 `netdisk115rs` Windows Service，并设置为 `Automatic` 自动启动。
+
+安装完成后打开：
+
+```text
+http://127.0.0.1:8080
+```
+
+## 安装位置
+
+| 内容 | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| 主程序 | `/usr/local/bin/netdisk115rs` | `/usr/local/bin/netdisk115rs` | `%ProgramFiles%\netdisk115rs\netdisk115rs.exe` |
+| 配置文件 | `/Library/Application Support/netdisk115rs/config.yaml` | `/var/lib/netdisk115rs/config.yaml` | `%ProgramData%\netdisk115rs\config.yaml` |
+| 数据目录 | `/Library/Application Support/netdisk115rs/data` | `/var/lib/netdisk115rs/data` | `%ProgramData%\netdisk115rs\data` |
+| Web 静态资源 | `/Library/Application Support/netdisk115rs/static` | `/var/lib/netdisk115rs/static` | `%ProgramData%\netdisk115rs\static` |
+| 服务配置 | `/Library/LaunchDaemons/com.canxin.netdisk115rs.plist` | `/etc/systemd/system/netdisk115rs.service` | Windows SCM |
+
+首次安装会从 Release 中的 `config.example.yaml` 自动创建 `config.yaml`。后续升级不会覆盖已有的 `config.yaml`、账号登录态和 `data/`。
+
+## 首次使用
+
+### 1. 确认服务正在运行
+
+macOS：
+
+```bash
+sudo launchctl print system/com.canxin.netdisk115rs
+```
+
+Linux：
+
+```bash
+sudo systemctl status netdisk115rs
+```
+
+Windows：
+
+```powershell
+Get-Service netdisk115rs
+```
+
+服务正常后，浏览器访问：
+
+```text
+http://127.0.0.1:8080
+```
+
+默认只监听本机回环地址，不会直接暴露到局域网或公网。
+
+### 2. 登录 115 账号
+
+配置中的账号会话和媒体库路径默认使用相对路径，因此使用 CLI 时应先进入服务的数据目录，确保命令行和后台服务使用同一套 `data/`。
+
+#### macOS
+
+```bash
+cd "/Library/Application Support/netdisk115rs"
+netdisk115rs --config config.yaml login password 你的115账号
+```
+
+不传 `--password` 时会读取 `NETDISK_PASSWORD`，没有设置时会进入交互输入，避免把密码直接写到命令历史中。
+
+查看登录状态：
+
+```bash
+netdisk115rs --config config.yaml login status
+```
+
+#### Linux
+
+```bash
+cd /var/lib/netdisk115rs
+netdisk115rs --config config.yaml login password 你的115账号
+```
+
+查看登录状态：
+
+```bash
+netdisk115rs --config config.yaml login status
+```
+
+#### Windows
+
+```powershell
+Set-Location "$env:ProgramData\netdisk115rs"
+& "$env:ProgramFiles\netdisk115rs\netdisk115rs.exe" --config .\config.yaml login password 你的115账号
+```
+
+查看登录状态：
+
+```powershell
+& "$env:ProgramFiles\netdisk115rs\netdisk115rs.exe" --config .\config.yaml login status
+```
+
+登录完成后建议重启后台服务，让正在运行的服务重新加载账号状态。
+
+### 短信验证码登录
+
+先发送验证码：
+
+```bash
+netdisk115rs --config config.yaml login sms-code 你的手机号
+```
+
+非默认地区号码可以按 CLI 提示使用 `--country` 指定国家或地区码。
+
+收到验证码后：
+
+```bash
+netdisk115rs --config config.yaml login sms 你的手机号 验证码
+```
+
+Windows 使用相同子命令，只需将可执行文件替换为：
+
+```powershell
+& "$env:ProgramFiles\netdisk115rs\netdisk115rs.exe"
+```
+
+## Web 访问控制
+
+默认配置的 Web 访问控制为关闭状态。如果服务只监听 `127.0.0.1`，可以按本机应用使用；如果计划开放到局域网、反向代理或公网，建议先创建 Web 管理员并开启访问控制。
+
+### macOS / Linux
+
+先进入对应的数据目录，然后执行：
+
+```bash
+printf "Web admin password: " >&2
+stty -echo
+IFS= read -r WEB_PASSWORD
+stty echo
+printf '\n' >&2
+printf '%s' "$WEB_PASSWORD" | netdisk115rs --config config.yaml access init --username admin --password-stdin
+unset WEB_PASSWORD
+```
+
+密码至少需要 10 个字符。`--password-stdin` 可以避免把密码作为命令行参数写入 shell 历史。
+
+查看 Web 用户：
+
+```bash
+netdisk115rs --config config.yaml access list
+```
+
+### Windows
+
+```powershell
+Set-Location "$env:ProgramData\netdisk115rs"
+$secure = Read-Host "Web admin password" -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+try {
+    $env:NETDISK_WEB_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    & "$env:ProgramFiles\netdisk115rs\netdisk115rs.exe" --config .\config.yaml access init --username admin
+} finally {
+    Remove-Item Env:NETDISK_WEB_PASSWORD -ErrorAction SilentlyContinue
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+}
+```
+
+修改访问控制后重启服务。
+
+## 局域网访问
+
+默认配置：
+
+```yaml
+server:
+  listen: "127.0.0.1:8080"
+```
+
+如果需要允许局域网设备访问，可修改为：
+
+```yaml
+server:
+  listen: "0.0.0.0:8080"
+```
+
+修改后重启服务，并确认操作系统防火墙允许对应端口。
+
+如果服务需要暴露到公网，建议同时满足以下条件：
+
+- 已开启 Web 访问控制；
+- 使用反向代理提供 HTTPS；
+- 不直接把未加密的 HTTP 管理端口暴露到互联网；
+- 根据实际使用环境配置防火墙和访问来源限制。
+
+## 服务管理
+
+### macOS
+
+查看状态：
+
+```bash
+sudo launchctl print system/com.canxin.netdisk115rs
+```
+
+重启：
+
+```bash
+sudo launchctl kickstart -k system/com.canxin.netdisk115rs
+```
+
+卸载当前 LaunchDaemon：
+
+```bash
+sudo launchctl bootout system /Library/LaunchDaemons/com.canxin.netdisk115rs.plist
+```
+
+重新加载：
+
+```bash
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.canxin.netdisk115rs.plist
+```
+
+日志：
+
+```bash
+tail -f "/Library/Application Support/netdisk115rs/logs/netdisk115rs.log"
+tail -f "/Library/Application Support/netdisk115rs/logs/netdisk115rs.error.log"
+```
+
+### Linux
+
+查看状态：
+
+```bash
+sudo systemctl status netdisk115rs
+```
+
+启动：
+
+```bash
+sudo systemctl start netdisk115rs
+```
+
+停止：
+
+```bash
+sudo systemctl stop netdisk115rs
+```
+
+重启：
+
+```bash
+sudo systemctl restart netdisk115rs
+```
+
+确认开机自启动：
+
+```bash
+sudo systemctl is-enabled netdisk115rs
+```
+
+查看日志：
+
+```bash
+sudo journalctl -u netdisk115rs -f
+```
+
+最近 100 行日志：
+
+```bash
+sudo journalctl -u netdisk115rs -n 100 --no-pager
+```
+
+### Windows
+
+查看状态：
+
+```powershell
+Get-Service netdisk115rs
+```
+
+启动：
+
+```powershell
+Start-Service netdisk115rs
+```
+
+停止：
+
+```powershell
+Stop-Service netdisk115rs
+```
+
+重启：
+
+```powershell
+Restart-Service netdisk115rs
+```
+
+查看服务启动类型：
+
+```powershell
+Get-CimInstance Win32_Service -Filter "Name='netdisk115rs'" | Select-Object Name, State, StartMode
+```
+
+日志目录：
+
+```text
+%ProgramData%\netdisk115rs\logs
+```
+
+PowerShell 查看错误日志：
+
+```powershell
+Get-Content "$env:ProgramData\netdisk115rs\logs\netdisk115rs.error.log" -Tail 100 -Wait
+```
+
+## 重启服务
+
+修改配置、通过 CLI 新增账号或调整 Web 访问控制后，建议重启服务。
+
+macOS：
+
+```bash
+sudo launchctl kickstart -k system/com.canxin.netdisk115rs
+```
+
+Linux：
+
+```bash
+sudo systemctl restart netdisk115rs
+```
+
+Windows：
+
+```powershell
+Restart-Service netdisk115rs
+```
+
+## 升级
+
+再次执行对应平台的一键安装命令即可升级到最新 Release。
+
+升级时安装器会停止旧服务、替换程序和 Web 静态资源，然后重新启动服务。已有配置和数据会保留。
+
+建议重要部署在升级前自行备份配置和数据目录。
+
+### macOS / Linux 升级到最新版本
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
+```
+
+### Windows 升级到最新版本
+
+管理员 PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 | iex
+```
+
+## 安装指定版本
+
+### macOS / Linux
+
+例如安装 `v0.1.0`：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash -s -- --version v0.1.0
 ```
 
-Windows 安装脚本支持 `-Version v0.1.0`；需要参数时建议先保存脚本再执行：
+### Windows
+
+需要传递参数时，建议先保存安装脚本：
 
 ```powershell
-irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 -OutFile $env:TEMP\install-netdisk115rs.ps1
-& $env:TEMP\install-netdisk115rs.ps1 -Version v0.1.0
+$script = "$env:TEMP\install-netdisk115rs.ps1"
+irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 -OutFile $script
+& $script -Version v0.1.0
 ```
+
+## 安装但暂不启动
+
+macOS / Linux：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash -s -- --no-start
+```
+
+Windows：
+
+```powershell
+$script = "$env:TEMP\install-netdisk115rs.ps1"
+irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.ps1 -OutFile $script
+& $script -NoStart
+```
+
+## 手动下载和离线安装
+
+所有正式版本都可以在 Releases 页面下载：
+
+<https://github.com/canxin121/netdisk115rs-release/releases>
+
+### macOS / Linux
+
+下载与你的系统和架构对应的 `.tar.gz`，同时下载 `install.sh`，然后执行：
+
+```bash
+chmod +x install.sh
+./install.sh --archive ./netdisk115rs-macos-arm64.tar.gz
+```
+
+Linux x86_64 示例：
+
+```bash
+./install.sh --archive ./netdisk115rs-linux-x86_64.tar.gz
+```
+
+### Windows
+
+下载对应的 `.zip` 和 `install.ps1`，管理员 PowerShell 执行：
+
+```powershell
+.\install.ps1 -ArchivePath .\netdisk115rs-windows-x86_64.zip
+```
+
+ARM64：
+
+```powershell
+.\install.ps1 -ArchivePath .\netdisk115rs-windows-arm64.zip
+```
+
+本地 `--archive` / `-ArchivePath` 模式用于安装已经下载好的包，不会再次从 GitHub 下载 Release。
+
+## 手动校验 SHA-256
+
+每个 Release 都包含 `SHA256SUMS`。
+
+### macOS
+
+```bash
+grep '  netdisk115rs-macos-arm64.tar.gz$' SHA256SUMS | shasum -a 256 -c -
+```
+
+Intel Mac 将文件名替换为 `netdisk115rs-macos-x86_64.tar.gz`。
+
+### Linux
+
+```bash
+grep '  netdisk115rs-linux-x86_64.tar.gz$' SHA256SUMS | sha256sum -c -
+```
+
+ARM64 将文件名替换为 `netdisk115rs-linux-arm64.tar.gz`。
+
+### Windows
+
+```powershell
+Get-FileHash .\netdisk115rs-windows-x86_64.zip -Algorithm SHA256
+```
+
+将输出的 Hash 与 `SHA256SUMS` 中对应文件的值比较。ARM64 使用 `netdisk115rs-windows-arm64.zip`。
+
+通过在线安装脚本安装时，这一步由安装器自动完成。
 
 ## 卸载
 
-默认保留配置与数据：
+### macOS / Linux
+
+默认卸载服务和程序，保留配置与数据：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.sh | bash
 ```
 
-彻底删除状态：
+彻底删除服务、程序、配置和数据：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.sh | bash -s -- --purge
 ```
 
-Windows（管理员 PowerShell）：
+### Windows
+
+管理员 PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.ps1 -OutFile $env:TEMP\uninstall-netdisk115rs.ps1
-& $env:TEMP\uninstall-netdisk115rs.ps1
-# 或彻底删除：
-& $env:TEMP\uninstall-netdisk115rs.ps1 -Purge
+$script = "$env:TEMP\uninstall-netdisk115rs.ps1"
+irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.ps1 -OutFile $script
+& $script
 ```
 
-## 闭源构建模型
+默认保留 `%ProgramData%\netdisk115rs` 中的配置和数据。
 
-发布仓库的 Actions 通过 Secret `SOURCE_REPO_SSH_KEY` 使用**只读 Deploy Key** checkout 私有源码：
+彻底删除：
+
+```powershell
+& $script -Purge
+```
+
+## CLI 使用
+
+安装后可以直接查看所有命令：
+
+```bash
+netdisk115rs --help
+```
+
+常用示例需要在服务数据目录下执行，以便使用同一套相对数据路径。
+
+查看账号信息：
+
+```bash
+netdisk115rs --config config.yaml info
+```
+
+查看空间配额：
+
+```bash
+netdisk115rs --config config.yaml quota
+```
+
+以文件系统方式列出根目录：
+
+```bash
+netdisk115rs --config config.yaml fs ls /
+```
+
+搜索：
+
+```bash
+netdisk115rs --config config.yaml search 关键词
+```
+
+查看 WebDAV 管理命令：
+
+```bash
+netdisk115rs --config config.yaml webdav --help
+```
+
+Windows 使用 `%ProgramFiles%\netdisk115rs\netdisk115rs.exe` 执行相同子命令。
+
+## WebDAV
+
+程序支持多个只读直链 WebDAV mount，每个 mount 可以独立指定：
+
+- 115 账号；
+- 115 根目录；
+- WebDAV URL 前缀；
+- Basic Auth 用户名和密码。
+
+查看管理命令：
+
+```bash
+netdisk115rs --config config.yaml webdav --help
+```
+
+配置完成后可以使用：
+
+```bash
+netdisk115rs --config config.yaml webdav validate
+netdisk115rs --config config.yaml webdav apply
+```
+
+详细字段可参考安装目录中的 `config.yaml` 以及 Release 内的 `config.example.yaml`。
+
+## 配置和数据备份
+
+升级默认不会删除用户数据，但重要部署仍建议定期备份整个状态目录。
+
+macOS：
 
 ```text
-canxin121/netdisk115rs-release  (public)
-        |
-        | SOURCE_REPO_SSH_KEY (read-only deploy key)
-        v
-canxin121/netdisk115rs          (private)
-        |
-        +--> bun install --frozen-lockfile
-        +--> bun run build -> static/
-        +--> cargo build --release --locked
-        +--> package + native service test
-        v
-GitHub Release binaries only
+/Library/Application Support/netdisk115rs
 ```
 
-Actions 不会 `upload-artifact` 私有源码目录；Release 中只有二进制、Web 静态资源、示例配置和源码 commit 标识。Deploy Key 仅能读取 `canxin121/netdisk115rs`，不使用个人 PAT 作为跨仓库构建凭据。
+Linux：
 
-## CI：真实安装与服务测试
+```text
+/var/lib/netdisk115rs
+```
 
-`.github/workflows/ci.yml` 对六个 GitHub hosted runner 做 native build + native install/service smoke test：
+Windows：
 
-| 平台 | Runner | Release asset |
-| --- | --- | --- |
-| Linux x86_64 | `ubuntu-24.04` | `netdisk115rs-linux-x86_64.tar.gz` |
-| Linux arm64 | `ubuntu-24.04-arm` | `netdisk115rs-linux-arm64.tar.gz` |
-| macOS Intel | `macos-15-intel` | `netdisk115rs-macos-x86_64.tar.gz` |
-| macOS Apple Silicon | `macos-15` | `netdisk115rs-macos-arm64.tar.gz` |
-| Windows x86_64 | `windows-2025` | `netdisk115rs-windows-x86_64.zip` |
-| Windows arm64 | `windows-11-arm` | `netdisk115rs-windows-arm64.zip` |
+```text
+%ProgramData%\netdisk115rs
+```
 
-每个 job 都会：
+其中通常包括：
 
-1. 用只读 Deploy Key 拉取私有源码；
-2. 构建 Web 与 Rust 后端；Windows 额外构建 `service/windows-wrapper`；
-3. 生成与 Release 相同格式的本地安装包；
-4. 调用公开安装器；
-5. 验证 `systemd` / `launchd` / Windows SCM 的自启动状态与 Running 状态；
-6. 请求 `http://127.0.0.1:8080/` 做 HTTP 探活；
-7. 清理测试服务。
+- `config.yaml`：服务配置；
+- `data/accounts/`：账号会话；
+- `data/library.sqlite`：媒体库和本地索引；
+- 其他运行状态文件。
 
-## 创建 Release
+不要公开分享包含账号会话、密码或访问 token 的配置和数据文件。
 
-GitHub Actions → **Release** → Run workflow：
+## 常见问题
 
-- `tag`：例如 `v0.1.0`；
-- `source_ref`：私有仓库 branch/tag/commit，默认 `main`；
-- `prerelease`：是否预发布。
+### 浏览器无法访问 `127.0.0.1:8080`
 
-工作流要求 `Cargo.toml` 中的版本与 tag 一致，然后在六个平台逐个完成 native 安装/服务测试；全部通过后才发布六个资产与 `SHA256SUMS`。
+先检查服务状态和日志：
 
-远程一键安装会校验 Release 中的 SHA-256 后再安装。本仓库不保存 `config.yaml`、Cookie、账号 session、私有源码或 Deploy Key。
+- macOS：`sudo launchctl print system/com.canxin.netdisk115rs`
+- Linux：`sudo systemctl status netdisk115rs`
+- Windows：`Get-Service netdisk115rs`
 
-> `netdisk115rs` 应用本身为闭源分发；见 [NOTICE.md](NOTICE.md)。
+如果服务启动失败，再查看对应平台的日志。
+
+### 端口 8080 已被占用
+
+修改 `config.yaml`：
+
+```yaml
+server:
+  listen: "127.0.0.1:18080"
+```
+
+然后重启服务，并访问新的端口。
+
+### CLI 登录成功，但 Web 服务里还看不到账号
+
+CLI 和服务使用的是独立进程。确认 CLI 是在服务状态目录中运行的，然后重启后台服务。
+
+### 修改 `config.yaml` 后没有生效
+
+大部分启动级配置需要重启服务后生效。
+
+### 升级会不会覆盖配置和数据
+
+不会。安装器会替换程序和 Web 静态资源，但保留已有 `config.yaml` 和状态目录中的用户数据。
+
+### 如何查看当前版本
+
+macOS / Linux：
+
+```bash
+netdisk115rs --version
+```
+
+Windows：
+
+```powershell
+& "$env:ProgramFiles\netdisk115rs\netdisk115rs.exe" --version
+```
+
+## Release 安全与完整性
+
+- 在线安装会下载并验证 Release 中的 `SHA256SUMS`；
+- 每个平台使用对应架构的原生二进制；
+- 发布流程会在 Linux x86_64、Linux arm64、macOS Intel、macOS Apple Silicon、Windows x86_64、Windows arm64 上实际完成安装和系统服务启动测试后再发布；
+- Release 仓库不分发 `netdisk115rs` 核心源码；
+- Release 包中只包含运行所需的二进制、Web 静态资源、示例配置和构建标识等文件。
+
+## 源码与许可说明
+
+`netdisk115rs` 核心程序为闭源分发。本仓库公开的是安装脚本、发布自动化、服务组件和文档，不代表核心程序源码已开放授权。
+
+第三方组件继续适用各自的许可条款。更多说明见 [NOTICE.md](NOTICE.md)。

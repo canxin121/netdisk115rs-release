@@ -1,5 +1,7 @@
-# Distribution notice
+# 分发说明
 
-This repository contains release automation, installers, documentation, and packaged release artifacts for **netdisk115rs**.
+本仓库用于分发 **netdisk115rs** 的安装脚本、服务组件、发布自动化、文档和预编译 Release。
 
-The `netdisk115rs` application source code is maintained in a separate private repository and is **not** distributed by this repository. No license to the private source code is granted here. Third-party components included in release packages retain their own licenses.
+`netdisk115rs` 核心应用源码不通过本仓库分发。下载或使用本仓库中的二进制文件不代表获得核心应用源码的授权。
+
+Release 中包含的第三方组件继续适用各自的许可证和使用条款。
