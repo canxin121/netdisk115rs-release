@@ -565,8 +565,8 @@ GitHub Actions 的普通 CI 会用 ad-hoc 签名构建 `Netdisk115.app`，用于
 正式 `Release` workflow 对两个 macOS 架构强制执行以下步骤：
 
 1. 从 private `canxin121/netdisk115rs` 的 `macos/signing/DeveloperIDApplication.p12` 导入 Apple 签发的 **Developer ID Application** 证书；
-2. 对 File Provider extension 和 Host App 分别签名，启用 Hardened Runtime，并验证 Team ID / entitlements；
-3. 使用 `xcrun notarytool` 提交 Apple notarization；
+2. 对 File Provider extension、Host App 和 `netdisk115rs` 后端 Mach-O 分别签名，启用 Hardened Runtime，并验证 Team ID / entitlements；
+3. 把签名后的 App 与后端作为同一 payload 使用 `xcrun notarytool` 提交 Apple notarization；
 4. `stapler` 附加并验证公证票据，`spctl` 通过后才打进 `.tar.gz`；
 5. 安装器 smoke test 再验证签名、公证、服务启动和重复安装升级。
 

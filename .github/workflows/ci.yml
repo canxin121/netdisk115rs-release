@@ -153,12 +153,14 @@ jobs:
           /usr/local/bin/netdisk115rs --version
           test -d "$app"
           codesign --verify --deep --strict "$app"
+          codesign --verify --strict /usr/local/bin/netdisk115rs
           lipo "$app/Contents/MacOS/Netdisk115" -verify_arch "${{ matrix.arch }}"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = com.netdisk115.mac
           test -d "$app/Contents/PlugIns/Netdisk115FileProvider.appex"
           # A second install exercises the atomic app replacement and service upgrade path.
           ./install.sh --archive "$archive"
           codesign --verify --deep --strict "$app"
+          codesign --verify --strict /usr/local/bin/netdisk115rs
           sudo launchctl print system/com.canxin.netdisk115rs >/dev/null
           curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
           ./uninstall.sh

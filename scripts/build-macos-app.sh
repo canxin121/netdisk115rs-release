@@ -8,6 +8,8 @@ mode="${NETDISK115RS_MACOS_SIGNING_MODE:-adhoc}"
 case "$arch" in arm64|x86_64) ;; *) echo "unsupported macOS arch: $arch" >&2; exit 64;; esac
 project="$source_dir/macos/Netdisk115.xcodeproj"
 [[ -d "$project" ]] || { echo "missing Xcode project: $project" >&2; exit 66; }
+backend="$source_dir/target/release/netdisk115rs"
+[[ -x "$backend" ]] || { echo "missing macOS backend binary: $backend" >&2; exit 66; }
 tmp="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/netdisk115-macos-build.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 build=(xcodebuild -quiet -project "$project" -scheme Netdisk115 -configuration Release -destination 'generic/platform=macOS' -derivedDataPath "$tmp/DerivedData" ARCHS="$arch" ONLY_ACTIVE_ARCH=YES ENABLE_HARDENED_RUNTIME=YES)
@@ -39,8 +41,12 @@ if [[ "$mode" == developer-id ]]; then
   /usr/libexec/PlistBuddy -c "Set :NSExtension:NSExtensionFileProviderDocumentGroup $group_id" "$ext/Contents/Info.plist"
   codesign --force --sign "$MACOS_CODE_SIGN_IDENTITY" --options runtime --timestamp --entitlements "$ext_ent" "$ext"
   codesign --force --sign "$MACOS_CODE_SIGN_IDENTITY" --options runtime --timestamp --entitlements "$host_ent" "$app"
+  codesign --force --sign "$MACOS_CODE_SIGN_IDENTITY" --options runtime --timestamp "$backend"
+else
+  codesign --force --sign - --options runtime "$backend"
 fi
 codesign --verify --deep --strict --verbose=2 "$app"
+codesign --verify --strict --verbose=2 "$backend"
 lipo "$app/Contents/MacOS/Netdisk115" -verify_arch "$arch"
 lipo "$app/Contents/PlugIns/Netdisk115FileProvider.appex/Contents/MacOS/Netdisk115FileProvider" -verify_arch "$arch"
 if [[ "$mode" == developer-id ]]; then
@@ -48,6 +54,10 @@ if [[ "$mode" == developer-id ]]; then
   grep -q "Authority=Developer ID Application:" <<<"$sig" || { echo "app is not signed with Developer ID Application" >&2; exit 65; }
   grep -q "TeamIdentifier=$APPLE_TEAM_ID" <<<"$sig" || { echo "Developer ID team mismatch" >&2; exit 65; }
   grep -q 'flags=.*runtime' <<<"$sig" || { echo "hardened runtime missing" >&2; exit 65; }
+  backend_sig="$(codesign -dv --verbose=4 "$backend" 2>&1)"
+  grep -q "Authority=Developer ID Application:" <<<"$backend_sig" || { echo "backend is not signed with Developer ID Application" >&2; exit 65; }
+  grep -q "TeamIdentifier=$APPLE_TEAM_ID" <<<"$backend_sig" || { echo "backend Developer ID team mismatch" >&2; exit 65; }
+  grep -q 'flags=.*runtime' <<<"$backend_sig" || { echo "backend hardened runtime missing" >&2; exit 65; }
   codesign -d --entitlements :- "$app" > "$tmp/signed-entitlements.plist" 2>/dev/null
   if [[ "$(plutil -extract com.apple.security.get-task-allow raw -o - "$tmp/signed-entitlements.plist" 2>/dev/null || true)" == true ]]; then
     echo "Developer ID build must not contain get-task-allow" >&2; exit 65

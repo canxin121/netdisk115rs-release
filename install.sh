@@ -118,6 +118,7 @@ tar -xzf "$tmp/$asset" -C "$tmp/pkg"
 if [[ "$platform" == macos ]]; then
   if [[ -d "$tmp/pkg/Netdisk115.app" ]]; then
     codesign --verify --deep --strict "$tmp/pkg/Netdisk115.app" || { echo "Netdisk115.app has an invalid code signature" >&2; exit 65; }
+    codesign --verify --strict "$tmp/pkg/netdisk115rs" || { echo "netdisk115rs has an invalid macOS code signature" >&2; exit 65; }
   else
     echo "Warning: this legacy macOS package does not contain Netdisk115.app; installing backend only." >&2
   fi
@@ -182,6 +183,7 @@ else
   "${SUDO[@]}" install -d -m 0750 -o "$run_user" -g "$run_group" "$state_dir"
   "${SUDO[@]}" install -d -m 0750 -o "$run_user" -g "$run_group" "$state_dir/logs"
   "${SUDO[@]}" install -m 0755 "$tmp/pkg/netdisk115rs" "$bin_path"
+  if [[ -d "$tmp/pkg/Netdisk115.app" ]]; then codesign --verify --strict "$bin_path"; fi
   "${SUDO[@]}" rm -rf "$state_dir/static.new"
   "${SUDO[@]}" cp -R "$tmp/pkg/static" "$state_dir/static.new"
   "${SUDO[@]}" rm -rf "$state_dir/static"
