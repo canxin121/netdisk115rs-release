@@ -54,7 +54,9 @@ case "$(uname -m)" in
 esac
 
 if [[ $EUID -eq 0 ]]; then
-  SUDO=()
+  # macOS still ships Bash 3.2: under `set -u`, expanding an empty array can
+  # raise "unbound variable". Use env as a transparent no-op command prefix.
+  SUDO=(/usr/bin/env)
 else
   command -v sudo >/dev/null 2>&1 || { echo "sudo is required" >&2; exit 69; }
   SUDO=(sudo)

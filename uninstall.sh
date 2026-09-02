@@ -2,7 +2,12 @@
 set -euo pipefail
 PURGE=0
 [[ "${1:-}" == "--purge" ]] && PURGE=1
-if [[ $EUID -eq 0 ]]; then SUDO=(); else SUDO=(sudo); fi
+if [[ $EUID -eq 0 ]]; then
+  # Avoid Bash 3.2 `set -u` failures when expanding an empty array.
+  SUDO=(/usr/bin/env)
+else
+  SUDO=(sudo)
+fi
 SERVICE_NAME="${NETDISK115RS_SERVICE_NAME:-netdisk115rs}"
 MAC_LABEL="${NETDISK115RS_SERVICE_LABEL:-com.canxin.netdisk115rs}"
 STATE_DIR_OVERRIDE="${NETDISK115RS_STATE_DIR:-}"
