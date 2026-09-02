@@ -26,13 +26,12 @@ if [[ "$mode" == developer-id ]]; then
   ext_ent="$tmp/FileProvider.entitlements"
   cp "$source_dir/macos/HostApp/HostApp.entitlements" "$host_ent"
   cp "$source_dir/macos/FileProvider/FileProvider.entitlements" "$ext_ent"
-  export APPLE_TEAM_ID
-  perl -0pi -e 's/\$\(AppIdentifierPrefix\)/$ENV{APPLE_TEAM_ID}./g; s/\$\(TeamIdentifierPrefix\)/$ENV{APPLE_TEAM_ID}./g' "$host_ent" "$ext_ent"
-  # Match the literal Xcode $(...) build-setting syntax.
-  # shellcheck disable=SC2016
-  if grep -q '\$(' "$host_ent" "$ext_ent"; then echo "unexpanded entitlement variable" >&2; exit 65; fi
   ext="$app/Contents/PlugIns/Netdisk115FileProvider.appex"
   group_id="${APPLE_TEAM_ID}.com.netdisk115.fileprovider"
+  /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier ${APPLE_TEAM_ID}.com.netdisk115.mac" "$host_ent"
+  /usr/libexec/PlistBuddy -c "Set :com.apple.security.application-groups:0 $group_id" "$host_ent"
+  /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier ${APPLE_TEAM_ID}.com.netdisk115.mac.fileprovider" "$ext_ent"
+  /usr/libexec/PlistBuddy -c "Set :com.apple.security.application-groups:0 $group_id" "$ext_ent"
   # CODE_SIGNING_ALLOWED=NO can leave TeamIdentifierPrefix empty in processed plists.
   # Make the runtime document-group values match the Developer ID entitlements explicitly.
   /usr/libexec/PlistBuddy -c "Set :SharedAppGroupIdentifier $group_id" "$app/Contents/Info.plist"

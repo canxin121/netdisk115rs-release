@@ -571,6 +571,7 @@ GitHub Actions 的普通 CI 会用 ad-hoc 签名构建 `Netdisk115.app`，用于
 5. 安装器 smoke test 再验证签名、公证、服务启动和重复安装升级。
 
 Release 仓库需要配置 `APPLE_TEAM_ID`、`MACOS_DEVELOPER_ID_P12_PASSWORD`、`APPLE_API_KEY_ID`、`APPLE_API_ISSUER_ID`、`APPLE_API_KEY_P8` secrets。缺少任意正式签名材料时，macOS Release job 会失败而不是发布一个 Gatekeeper 会拒绝的 App。
+当前 App Group 使用 `<APPLE_TEAM_ID>.com.netdisk115.fileprovider` 的 macOS Team-ID 前缀形式，因此 Developer ID 直分发不额外依赖 provisioning profile；如果以后改成 `group.*` App Group，则需要同步引入 Apple provisioning profile。
 
 ## CLI 使用
 
