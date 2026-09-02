@@ -123,6 +123,41 @@ jobs:
         shell: bash
         working-directory: source
         run: cargo build --release --locked
+      - name: Test macOS File Provider contracts
+        if: runner.os == 'macOS'
+        shell: bash
+        run: swift test --package-path source/macos
+      - name: Import Apple Developer ID signing identity
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_P12_PASSWORD }}
+        run: ./scripts/import-macos-signing.sh "$PWD/source"
+      - name: Build Developer ID signed macOS mount app
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          NETDISK115RS_MACOS_SIGNING_MODE: developer-id
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: ./scripts/build-macos-app.sh "$PWD/source" "$PWD/source/target/macos" "${{ matrix.arch }}"
+      - name: Notarize macOS mount app
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          : "${APPLE_API_KEY_ID:?missing APPLE_API_KEY_ID secret}"
+          : "${APPLE_API_ISSUER_ID:?missing APPLE_API_ISSUER_ID secret}"
+          : "${APPLE_API_KEY_P8:?missing APPLE_API_KEY_P8 secret}"
+          key="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8" > "$key"
+          APPLE_API_KEY_PATH="$key" ./scripts/notarize-macos-app.sh "$PWD/source/target/macos/Netdisk115.app"
+          rm -f "$key"
       - name: Build Windows service host
         if: runner.os == 'Windows'
         shell: bash
@@ -144,14 +179,22 @@ jobs:
           sudo systemctl is-enabled --quiet netdisk115rs.service
           sudo systemctl is-active --quiet netdisk115rs.service
           curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
-      - name: Smoke test macOS installer/service
+      - name: Smoke test notarized macOS app and installer/service
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          ./install.sh --archive "$PWD/dist/${{ matrix.asset }}"
+          archive="$PWD/dist/${{ matrix.asset }}"
+          app=/Applications/Netdisk115.app
+          ./install.sh --archive "$archive"
           sudo launchctl print system/com.canxin.netdisk115rs >/dev/null
           curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
+          codesign --verify --deep --strict "$app"
+          spctl --assess --type execute -vv "$app"
+          xcrun stapler validate "$app"
+          lipo "$app/Contents/MacOS/Netdisk115" -verify_arch "${{ matrix.arch }}"
+          ./install.sh --archive "$archive"
+          codesign --verify --deep --strict "$app"
       - name: Smoke test Windows installer/service
         if: runner.os == 'Windows'
         shell: pwsh
@@ -169,6 +212,11 @@ jobs:
         if: always() && runner.os != 'Windows'
         shell: bash
         run: ./uninstall.sh --purge || true
+      - name: Cleanup macOS signing keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          if [[ -n "${NETDISK115RS_MACOS_KEYCHAIN:-}" ]]; then security delete-keychain "$NETDISK115RS_MACOS_KEYCHAIN" || true; fi
       - name: Cleanup Windows test service
         if: always() && runner.os == 'Windows'
         shell: pwsh
@@ -205,7 +253,7 @@ jobs:
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           set -euo pipefail
-          notes="Closed-source binary release built from private source ref \`$SOURCE_REF\` at commit \`$SOURCE_SHA\`. All six native installer/service jobs passed before publishing."
+          notes="Closed-source binary release built from private source ref \`$SOURCE_REF\` at commit \`$SOURCE_SHA\`. All six native installer/service jobs passed before publishing; macOS packages also include a Developer ID-signed and notarized Netdisk115 File Provider app."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
             edit_flags=(--title "$TAG" --notes "$notes" "--prerelease=$PRERELEASE")

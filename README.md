@@ -7,6 +7,7 @@
 - 最新版本：<https://github.com/canxin121/netdisk115rs-release/releases/latest>
 - 默认 Web 地址：`http://127.0.0.1:8080`
 - 支持原生系统服务和开机自启动
+- 新的 macOS Release 同时包含 `/Applications/Netdisk115.app`（Finder File Provider 挂载 App）
 - 支持自动升级式安装：再次运行安装脚本即可更新程序
 - Release 下载会自动校验 SHA-256
 
@@ -16,8 +17,8 @@
 | --- | --- | --- | --- |
 | Linux | x86_64 | `netdisk115rs-linux-x86_64.tar.gz` | systemd |
 | Linux | arm64 | `netdisk115rs-linux-arm64.tar.gz` | systemd |
-| macOS | Intel x86_64 | `netdisk115rs-macos-x86_64.tar.gz` | LaunchDaemon |
-| macOS | Apple Silicon arm64 | `netdisk115rs-macos-arm64.tar.gz` | LaunchDaemon |
+| macOS | Intel x86_64 | `netdisk115rs-macos-x86_64.tar.gz` | LaunchDaemon + File Provider App |
+| macOS | Apple Silicon arm64 | `netdisk115rs-macos-arm64.tar.gz` | LaunchDaemon + File Provider App |
 | Windows | x86_64 | `netdisk115rs-windows-x86_64.zip` | Windows Service |
 | Windows | arm64 | `netdisk115rs-windows-arm64.zip` | Windows Service |
 
@@ -33,7 +34,7 @@ Linux 安装方式要求系统使用 `systemd`。macOS 和 Linux 安装器会在
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
 ```
 
-安装器会自动识别 Intel 或 Apple Silicon，下载对应 Release，校验 SHA-256，安装 LaunchDaemon 并启动服务。
+安装器会自动识别 Intel 或 Apple Silicon，下载对应 Release，校验 SHA-256。新格式 Release 会安装 LaunchDaemon 与 `/Applications/Netdisk115.app` 并启动后端服务；旧格式（例如现有 `v0.1.0`）没有 App 时会兼容为仅安装后端。正式新 Release 中的 App 使用 Apple Developer ID 签名并经过 notarization。
 
 安装完成后打开：
 
@@ -78,6 +79,7 @@ http://127.0.0.1:8080
 | 内容 | macOS | Linux | Windows |
 | --- | --- | --- | --- |
 | 主程序 | `/usr/local/bin/netdisk115rs` | `/usr/local/bin/netdisk115rs` | `%ProgramFiles%\netdisk115rs\netdisk115rs.exe` |
+| Finder 挂载 App | `/Applications/Netdisk115.app` | — | — |
 | 配置文件 | `/Library/Application Support/netdisk115rs/config.yaml` | `/var/lib/netdisk115rs/config.yaml` | `%ProgramData%\netdisk115rs\config.yaml` |
 | 数据目录 | `/Library/Application Support/netdisk115rs/data` | `/var/lib/netdisk115rs/data` | `%ProgramData%\netdisk115rs\data` |
 | Web 静态资源 | `/Library/Application Support/netdisk115rs/static` | `/var/lib/netdisk115rs/static` | `%ProgramData%\netdisk115rs\static` |
@@ -401,7 +403,7 @@ Restart-Service netdisk115rs
 
 再次执行对应平台的一键安装命令即可升级到最新 Release。
 
-升级时安装器会停止旧服务、替换程序和 Web 静态资源，然后重新启动服务。已有配置和数据会保留。
+升级时安装器会停止旧服务、替换程序和 Web 静态资源，然后重新启动服务。macOS 还会先退出旧的 Host App / File Provider 进程，完整替换 App bundle，并在新 bundle 的嵌套代码签名验证通过后才删除旧副本；历史 `~/Applications/Netdisk115.app` 开发安装会迁移到 `/Applications`。已有配置和数据会保留。
 
 建议重要部署在升级前自行备份配置和数据目录。
 
@@ -526,13 +528,13 @@ Get-FileHash .\netdisk115rs-windows-x86_64.zip -Algorithm SHA256
 
 ### macOS / Linux
 
-默认卸载服务和程序，保留配置与数据：
+默认卸载服务、主程序以及 macOS 的 `/Applications/Netdisk115.app`，保留配置、账号状态和 App 数据，便于重新安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.sh | bash
 ```
 
-彻底删除服务、程序、配置和数据：
+彻底删除服务、程序、配置和数据；macOS 同时清理 Host App / File Provider sandbox container 与 App Group 数据：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninstall.sh | bash -s -- --purge
@@ -555,6 +557,20 @@ irm https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/uninst
 ```powershell
 & $script -Purge
 ```
+
+## macOS Release 签名与公证
+
+GitHub Actions 的普通 CI 会用 ad-hoc 签名构建 `Netdisk115.app`，用于验证 Xcode 构建、打包、安装、重复安装升级和卸载流程。ad-hoc 包不会作为正式 macOS Release 发布。
+
+正式 `Release` workflow 对两个 macOS 架构强制执行以下步骤：
+
+1. 从 private `canxin121/netdisk115rs` 的 `macos/signing/DeveloperIDApplication.p12` 导入 Apple 签发的 **Developer ID Application** 证书；
+2. 对 File Provider extension 和 Host App 分别签名，启用 Hardened Runtime，并验证 Team ID / entitlements；
+3. 使用 `xcrun notarytool` 提交 Apple notarization；
+4. `stapler` 附加并验证公证票据，`spctl` 通过后才打进 `.tar.gz`；
+5. 安装器 smoke test 再验证签名、公证、服务启动和重复安装升级。
+
+Release 仓库需要配置 `APPLE_TEAM_ID`、`MACOS_DEVELOPER_ID_P12_PASSWORD`、`APPLE_API_KEY_ID`、`APPLE_API_ISSUER_ID`、`APPLE_API_KEY_P8` secrets。缺少任意正式签名材料时，macOS Release job 会失败而不是发布一个 Gatekeeper 会拒绝的 App。
 
 ## CLI 使用
 

@@ -97,6 +97,18 @@ jobs:
         working-directory: source
         run: cargo build --release --locked
 
+      - name: Test macOS File Provider contracts
+        if: runner.os == 'macOS'
+        shell: bash
+        run: swift test --package-path source/macos
+
+      - name: Build macOS mount app (ad-hoc CI signing)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          NETDISK115RS_MACOS_SIGNING_MODE: adhoc
+        run: ./scripts/build-macos-app.sh "$PWD/source" "$PWD/source/target/macos" "${{ matrix.arch }}"
+
       - name: Build Windows service host
         if: runner.os == 'Windows'
         shell: bash
@@ -123,15 +135,31 @@ jobs:
           curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
           /usr/local/bin/netdisk115rs --version
 
-      - name: Install and verify macOS LaunchDaemon
+      - name: Install, upgrade, and uninstall macOS package
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          ./install.sh --archive "$PWD/dist/${{ matrix.asset }}"
+          archive="$PWD/dist/${{ matrix.asset }}"
+          app=/Applications/Netdisk115.app
+          ./install.sh --archive "$archive"
           sudo launchctl print system/com.canxin.netdisk115rs >/dev/null
           curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
           /usr/local/bin/netdisk115rs --version
+          test -d "$app"
+          codesign --verify --deep --strict "$app"
+          lipo "$app/Contents/MacOS/Netdisk115" -verify_arch "${{ matrix.arch }}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = com.netdisk115.mac
+          test -d "$app/Contents/PlugIns/Netdisk115FileProvider.appex"
+          # A second install exercises the atomic app replacement and service upgrade path.
+          ./install.sh --archive "$archive"
+          codesign --verify --deep --strict "$app"
+          sudo launchctl print system/com.canxin.netdisk115rs >/dev/null
+          curl -fsS --retry 20 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/ >/dev/null
+          ./uninstall.sh
+          test ! -e "$app"
+          test ! -e /usr/local/bin/netdisk115rs
+          test ! -e /Library/LaunchDaemons/com.canxin.netdisk115rs.plist
 
       - name: Install and verify Windows Service
         if: runner.os == 'Windows'
