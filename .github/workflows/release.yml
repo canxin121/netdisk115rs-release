@@ -109,8 +109,13 @@ jobs:
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
         run: ./scripts/checkout-private-source.ps1 -Repository "$env:SOURCE_REPO" -Ref "$env:SOURCE_SHA" -Destination "$PWD/source"
       - uses: oven-sh/setup-bun@v2
+        if: runner.os != 'Windows' || matrix.arch != 'arm64'
         with:
-          bun-version: latest
+          bun-version: 1.4.0
+      - name: Setup Bun on Windows ARM64 without managed ZIP extraction
+        if: runner.os == 'Windows' && matrix.arch == 'arm64'
+        shell: pwsh
+        run: ./scripts/setup-bun-windows-arm64.ps1 -Version 1.4.0
       - name: Build web assets
         shell: bash
         working-directory: source/web
