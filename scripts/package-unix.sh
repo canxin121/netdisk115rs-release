@@ -12,8 +12,15 @@ cp "$source_dir/config.example.yaml" "$stage/config.example.yaml"
 cp -R "$source_dir/static" "$stage/static"
 if [[ "$platform" == macos ]]; then
   app="$source_dir/target/macos/Netdisk115.app"
-  [[ -d "$app" ]] || { echo "missing macOS app: $app" >&2; exit 65; }
-  ditto "$app" "$stage/Netdisk115.app"
+  mode="${NETDISK115RS_MACOS_APP_MODE:-notarized-app}"
+  if [[ -d "$app" ]]; then
+    ditto "$app" "$stage/Netdisk115.app"
+  elif [[ "$mode" == service-only ]]; then
+    echo "Packaging service-only macOS archive without Netdisk115.app" >&2
+  else
+    echo "missing macOS app: $app" >&2
+    exit 65
+  fi
 fi
 git -C "$source_dir" rev-parse HEAD > "$stage/SOURCE_COMMIT.txt"
 tar -C "$stage" -czf "$out_dir/netdisk115rs-${platform}-${arch}.tar.gz" .

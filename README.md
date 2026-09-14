@@ -7,7 +7,7 @@
 - 最新版本：<https://github.com/canxin121/netdisk115rs-release/releases/latest>
 - 默认 Web 地址：`http://127.0.0.1:8080`
 - 支持原生系统服务和开机自启动
-- 新的 macOS Release 同时包含 `/Applications/Netdisk115.app`（Finder File Provider 挂载 App）
+- macOS Release 在 Apple Developer ID / notarization 凭据齐全时包含 `/Applications/Netdisk115.app`；否则使用兼容的 backend/service-only 包，并在 Release notes 中明确标注
 - 支持自动升级式安装：再次运行安装脚本即可更新程序
 - Release 下载会自动校验 SHA-256
 
@@ -17,8 +17,8 @@
 | --- | --- | --- | --- |
 | Linux | x86_64 | `netdisk115rs-linux-x86_64.tar.gz` | systemd |
 | Linux | arm64 | `netdisk115rs-linux-arm64.tar.gz` | systemd |
-| macOS | Intel x86_64 | `netdisk115rs-macos-x86_64.tar.gz` | LaunchDaemon + File Provider App |
-| macOS | Apple Silicon arm64 | `netdisk115rs-macos-arm64.tar.gz` | LaunchDaemon + File Provider App |
+| macOS | Intel x86_64 | `netdisk115rs-macos-x86_64.tar.gz` | LaunchDaemon；已签名发布另含 File Provider App |
+| macOS | Apple Silicon arm64 | `netdisk115rs-macos-arm64.tar.gz` | LaunchDaemon；已签名发布另含 File Provider App |
 | Windows | x86_64 | `netdisk115rs-windows-x86_64.zip` | Windows Service |
 | Windows | arm64 | `netdisk115rs-windows-arm64.zip` | Windows Service |
 
@@ -34,7 +34,7 @@ Linux 安装方式要求系统使用 `systemd`。macOS 和 Linux 安装器会在
 curl -fsSL https://raw.githubusercontent.com/canxin121/netdisk115rs-release/main/install.sh | bash
 ```
 
-安装器会自动识别 Intel 或 Apple Silicon，下载对应 Release，校验 SHA-256。新格式 Release 会安装 LaunchDaemon 与 `/Applications/Netdisk115.app` 并启动后端服务；旧格式（例如现有 `v0.1.0`）没有 App 时会兼容为仅安装后端。正式新 Release 中的 App 使用 Apple Developer ID 签名并经过 notarization。
+安装器会自动识别 Intel 或 Apple Silicon，下载对应 Release，校验 SHA-256。包含 `Netdisk115.app` 的 Release 会安装 LaunchDaemon 与 Finder File Provider App；service-only 兼容包则只更新后端与 Web 静态资源。凡公开 Release 包含 App 时，workflow 仍要求 Apple Developer ID 签名并经过 notarization；没有完整 Apple 凭据时不会生成或冒充已签名 App。
 
 安装完成后打开：
 
