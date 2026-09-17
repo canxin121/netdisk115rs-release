@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      draft:
+        description: Stage artifacts as a draft for verification before publication
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -298,6 +303,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           PRERELEASE: ${{ inputs.prerelease }}
+          DRAFT: ${{ inputs.draft }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SOURCE_REF: ${{ inputs.source_ref }}
           MACOS_MODE: ${{ needs.prepare.outputs.macos_mode }}
@@ -318,11 +324,12 @@ jobs:
           printf '## Build and distribution\n\nClosed-source binary release built from private source ref `%s` at commit `%s`. All six native installer/service jobs passed before publishing.\n\n%s\n' "$SOURCE_REF" "$SOURCE_SHA" "$mac_note" >> "$notes_file"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
-            edit_flags=(--title "$TAG" --notes-file "$notes_file" "--prerelease=$PRERELEASE")
-            if [[ "$PRERELEASE" != true ]]; then edit_flags+=(--latest); fi
+            edit_flags=(--title "$TAG" --notes-file "$notes_file" "--prerelease=$PRERELEASE" "--draft=$DRAFT")
+            if [[ "$PRERELEASE" != true && "$DRAFT" != true ]]; then edit_flags+=(--latest); fi
             gh release edit "$TAG" "${edit_flags[@]}"
           else
             flags=(--title "$TAG" --target "$GITHUB_SHA" --notes-file "$notes_file")
-            if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); else flags+=(--latest); fi
+            if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); fi
+            if [[ "$DRAFT" == true ]]; then flags+=(--draft); elif [[ "$PRERELEASE" != true ]]; then flags+=(--latest); fi
             gh release create "$TAG" dist/* "${flags[@]}"
           fi
