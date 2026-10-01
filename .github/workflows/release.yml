@@ -137,6 +137,8 @@ jobs:
         env:
           SOURCE_REPO_SSH_KEY: ${{ secrets.SOURCE_REPO_SSH_KEY }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/checkout-private-source.ps1 -Repository "$env:SOURCE_REPO" -Ref "$env:SOURCE_SHA" -Destination "$PWD/source"
       - uses: oven-sh/setup-bun@v2
         if: runner.os != 'Windows' || matrix.arch != 'arm64'

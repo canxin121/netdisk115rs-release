@@ -49,8 +49,17 @@ try {
     Set-Acl -LiteralPath $keyPath -AclObject $acl
 
     # Build known_hosts from GitHub's HTTPS Meta API rather than
-    # trusting an unauthenticated ssh-keyscan result.
-    $meta = Invoke-RestMethod -Headers @{ "User-Agent" = "netdisk115rs-release" } -Uri "https://api.github.com/meta"
+    # trusting an unauthenticated ssh-keyscan result. api.github.com is
+    # rate-limited per source IP and hosted runners share those IPs, so an
+    # anonymous call intermittently fails with "API rate limit exceeded" and
+    # kills the whole Windows ARM64 job. Send the workflow token when present;
+    # anonymous is still allowed as a fallback.
+    $metaHeaders = @{ "User-Agent" = "netdisk115rs-release" }
+    if ($env:GITHUB_TOKEN) {
+        $metaHeaders["Authorization"] = "Bearer $env:GITHUB_TOKEN"
+        $metaHeaders["X-GitHub-Api-Version"] = "2022-11-28"
+    }
+    $meta = Invoke-RestMethod -Headers $metaHeaders -Uri "https://api.github.com/meta"
     $knownHosts = @($meta.ssh_keys | ForEach-Object { "github.com $_" })
     if ($knownHosts.Count -eq 0) {
         throw "GitHub Meta API returned no SSH host keys"
